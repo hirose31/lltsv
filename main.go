@@ -48,6 +48,10 @@ func main() {
 			Name:  "no-key, K",
 			Usage: "output without keys (and without color)",
 		},
+		cli.StringSliceFlag{
+			Name:  "filter, f",
+			Usage: "filter expression to output",
+		},
 	}
 	app.Action = doMain
 	app.Run(os.Args)
