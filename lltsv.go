@@ -3,6 +3,8 @@ package main
 import (
 	"bufio"
 	"os"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/andrew-d/go-termutil"
@@ -25,13 +27,68 @@ func newLltsv(keys []string, no_key bool) *Lltsv {
 	}
 }
 
-func (lltsv *Lltsv) scanAndWrite(file *os.File) error {
+func (lltsv *Lltsv) scanAndWrite(file *os.File, filters []string) error {
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := scanner.Text()
 		lvs := lltsv.parseLtsv(line)
-		ltsv := lltsv.restructLtsv(lvs)
-		os.Stdout.WriteString(ltsv + "\n")
+
+		should_output := true
+		for _, f := range filters {
+			exp := strings.SplitN(f, " ", 3)
+			switch exp[1] {
+			case ">", ">=", "==", "<=", "<":
+				l, _ := strconv.ParseFloat(lvs[exp[0]], 64)
+				r, _ := strconv.ParseFloat(exp[2], 64)
+				switch exp[1] {
+				case ">":
+					if !(l > r) {
+						should_output = false
+						break
+					}
+				case ">=":
+					if !(l >= r) {
+						should_output = false
+						break
+					}
+				case "==":
+					if !(l == r) {
+						should_output = false
+						break
+					}
+				case "<=":
+					if !(l <= r) {
+						should_output = false
+						break
+					}
+				case "<":
+					if !(l < r) {
+						should_output = false
+						break
+					}
+				}
+			case "=~", "!~":
+				l := lvs[exp[0]]
+				r := exp[2]
+				switch exp[1] {
+				case "=~":
+					if m, _ := regexp.MatchString(r, l); m == false {
+						should_output = false
+						break
+					}
+				case "!~":
+					if m, _ := regexp.MatchString(r, l); m == true {
+						should_output = false
+						break
+					}
+				}
+			}
+		}
+
+		if should_output {
+			ltsv := lltsv.restructLtsv(lvs)
+			os.Stdout.WriteString(ltsv + "\n")
+		}
 	}
 	return scanner.Err()
 }

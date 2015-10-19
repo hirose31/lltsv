@@ -43,6 +43,10 @@ func main() {
 			Name:  "no-key, K",
 			Usage: "output without keys (and without color)",
 		},
+		cli.StringSliceFlag{
+			Name:  "filter, f",
+			Usage: "filter expression to output",
+		},
 	}
 	app.Action = doMain
 	app.Run(os.Args)
@@ -66,7 +70,7 @@ func doMain(c *cli.Context) {
 				exitCode = 1
 				return
 			}
-			err = lltsv.scanAndWrite(file)
+			err = lltsv.scanAndWrite(file, c.StringSlice("filter"))
 			file.Close()
 			if err != nil {
 				os.Stderr.WriteString("reading input errored\n")
@@ -76,7 +80,7 @@ func doMain(c *cli.Context) {
 		}
 	} else {
 		file := os.Stdin
-		err := lltsv.scanAndWrite(file)
+		err := lltsv.scanAndWrite(file, c.StringSlice("filter"))
 		file.Close()
 		if err != nil {
 			os.Stderr.WriteString("reading input errored\n")
