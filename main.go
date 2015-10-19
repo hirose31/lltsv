@@ -1,7 +1,10 @@
 package main
 
 import (
+	"log"
 	"os"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/codegangsta/cli"
@@ -9,6 +12,8 @@ import (
 
 // os.Exit forcely kills process, so let me share this global variable to terminate at the last
 var exitCode = 0
+
+type Filter func(string) bool
 
 func main() {
 	app := cli.NewApp()
@@ -56,6 +61,55 @@ func doMain(c *cli.Context) {
 	}
 	no_key := c.Bool("no-key")
 
+	filters := map[string]Filter{}
+
+	for _, f := range c.StringSlice("filter") {
+		exp := strings.SplitN(f, " ", 3)
+		key := exp[0]
+		switch exp[1] {
+		case ">", ">=", "==", "<=", "<":
+			r, err := strconv.ParseFloat(exp[2], 64)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			filters[key] = func(val string) bool {
+				num, err := strconv.ParseFloat(val, 64)
+				if err != nil {
+					log.Println(err)
+					return false
+				}
+				switch exp[1] {
+				case ">":
+					return num > r
+				case ">=":
+					return num >= r
+				case "==":
+					return num == r
+				case "<=":
+					return num <= r
+				case "<":
+					return num < r
+				default:
+					log.Println("ha? fixme")
+					return false
+				}
+			}
+		case "=~", "!~":
+			re := regexp.MustCompile(exp[2])
+			filters[key] = func(val string) bool {
+				switch exp[1] {
+				case "=~":
+					return re.MatchString(val)
+				case "!~":
+					return !re.MatchString(val)
+				default:
+					return false
+				}
+			}
+		}
+	}
+
 	lltsv := newLltsv(keys, no_key)
 
 	if len(c.Args()) > 0 {
@@ -66,7 +120,7 @@ func doMain(c *cli.Context) {
 				exitCode = 1
 				return
 			}
-			err = lltsv.scanAndWrite(file)
+			err = lltsv.scanAndWrite(file, filters)
 			file.Close()
 			if err != nil {
 				os.Stderr.WriteString("reading input errored\n")
@@ -76,7 +130,7 @@ func doMain(c *cli.Context) {
 		}
 	} else {
 		file := os.Stdin
-		err := lltsv.scanAndWrite(file)
+		err := lltsv.scanAndWrite(file, filters)
 		file.Close()
 		if err != nil {
 			os.Stderr.WriteString("reading input errored\n")
